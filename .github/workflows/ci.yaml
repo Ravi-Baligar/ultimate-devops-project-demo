@@ -1,90 +1,89 @@
-# CI for Product Catalog Service
+# This is ci file for the product catalog
 
 name: product-catalog-ci
 
-on: 
-    pull_request:
-        branches:
-        - main
+on:
+  pull_request:
+    branches:
+      - main
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
-        steps:
+    steps:
+      - name: checking out code
+        uses: actions/checkout@v5
+
+      - name: Setup the go 
+        uses: actions/setup-go@v5
+        with:  
+          go-version: 1.22  
+
+      - name: Build the go code
+        run : |
+          cd src/product-catalog/
+          go.mod download
+          go build -o product-catalog-service main.go
+
+      - name: Run the test
+        run : |
+          cd src/product-catalog/
+          go test ./...
+
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout code
+      uses: actions/checkout@v5
+
+    - name: Setup Go 1.22
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.22
+
+    - name: Running go-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: v1.55.2
+        run: golangci-lint run
+        working-directory: src/product-catalog
+
+  Docker:
+    runs-on: ubuntu-latest
+
+    needs: build
+
+    steps:
+      - name: docker Installation
+        uses: docker/setup-buildx-action@v1
+
+      - name: checkout
+        uses: actions/checkout@v5
+
+      - name: Login to Docker
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+      
+      - name: Docker build and Push
+        uses: docker/build-push-action@v6
+        with:
+          context: src/product-catalog
+          file: src/product-catalog/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/product-catalog:${{github.run_id}}
+
+  updatek8s:
+    runs-on: ubuntu-latest
+
+    needs: docker
+
+    steps:
         - name: checkout code
-          uses: actions/checkout@v4
-
-        - name: Setup Go 1.22
-          uses: actions/setup-go@v2
-          with:
-            go-version: 1.22
-        
-        - name: Build
-          run: |
-            cd src/product-catalog
-            go mod download
-            go build -o product-catalog-service main.go
-
-        - name: unit tests
-          run: |
-            cd src/product-catalog
-            go test ./...
-    
-    code-quality:
-        runs-on: ubuntu-latest
-
-        steps:
-        - name: checkout code
-          uses: actions/checkout@v4
-        
-        - name: Setup Go 1.22
-          uses: actions/setup-go@v2
-          with:
-           go-version: 1.22
-        
-        - name: Run golangci-lint
-          uses: golangci/golangci-lint-action@v6
-          with:
-            version: v1.55.2
-            run: golangci-lint run
-            working-directory: src/product-catalog
-
-    docker:
-        runs-on: ubuntu-latest
-
-        needs: build
-
-        steps:
-        - name: checkout code
-          uses: actions/checkout@v4
-
-        - name: Install Docker
-          uses: docker/setup-buildx-action@v1
-        
-        - name: Login to Docker
-          uses: docker/login-action@v3
-          with:
-            username: ${{ secrets.DOCKER_USERNAME }}
-            password: ${{ secrets.DOCKER_TOKEN }}
-
-        - name: Docker Push
-          uses: docker/build-push-action@v6
-          with:
-            context: src/product-catalog
-            file: src/product-catalog/Dockerfile
-            push: true
-            tags: ${{ secrets.DOCKER_USERNAME }}/product-catalog:${{github.run_id}}
-
-    
-    updatek8s:
-        runs-on: ubuntu-latest
-
-        needs: docker
-
-        steps:
-        - name: checkout code
-          uses: actions/checkout@v4
+          uses: actions/checkout@v5
           with:
             token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -94,15 +93,8 @@ jobs:
         
         - name: Commit and push changes
           run: |
-            git config --global user.email "abhishek@gmail.com"
-            git config --global user.name "Abhishek Veeramalla"
+            git config --global user.email "ravibaligar108@gmail.com"
+            git config --global user.name "Ravi Baligar"
             git add kubernetes/productcatalog/deploy.yaml
             git commit -m "[CI]: Update product catalog image tag"
             git push origin HEAD:main -f
-
-        
-        
-          
-
-
-        
